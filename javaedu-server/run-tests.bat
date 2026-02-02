@@ -1,0 +1,1 @@
+@echo offnset JAVA_HOME=C:\Program Files\JetBrains\IntelliJ IDEA Community Edition 2025.1.3\jbrnset PATH=%JAVA_HOME%\bin;%PATH%ncd /d C:\Users\shapi\Documents\projects\students_java\javaedu-servern"C:\Program Files\JetBrains\IntelliJ IDEA Community Edition 2025.1.3\plugins\maven\lib\maven3\bin\mvn.cmd" test -Dtest=LearningEngineServiceTest

@@ -1,0 +1,168 @@
+spring:
+  application:
+    name: javaedu-server
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:javaedu}
+    username: ${DB_USERNAME:javaedu}
+    password: ${DB_PASSWORD:javaedu}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:}
+            client-secret: ${GOOGLE_CLIENT_SECRET:}
+            scope:
+              - email
+              - profile
+              - https://www.googleapis.com/auth/classroom.courses.readonly
+              - https://www.googleapis.com/auth/classroom.rosters.readonly
+              - https://www.googleapis.com/auth/classroom.coursework.students
+          github:
+            client-id: ${GITHUB_CLIENT_ID:}
+            client-secret: ${GITHUB_CLIENT_SECRET:}
+            scope:
+              - read:user
+              - user:email
+              - read:org
+
+server:
+  port: ${SERVER_PORT:8080}
+
+# JWT Configuration
+jwt:
+  secret: ${JWT_SECRET:your-256-bit-secret-key-here-change-in-production-minimum-32-chars}
+  expiration: 3600000  # 1 hour in milliseconds
+  refresh-expiration: 604800000  # 7 days in milliseconds
+
+# Sandbox Configuration
+sandbox:
+  timeout-seconds: 30
+  max-memory-mb: 256
+  max-threads: 2
+  allowed-packages:
+    - java.lang
+    - java.util
+    - java.math
+    - java.text
+    - java.time
+
+# AI Helper Configuration
+ai:
+  provider: ${AI_PROVIDER:claude}
+  api-key: ${AI_API_KEY:}
+  rate-limit:
+    requests-per-hour: 10
+    requests-per-day: 50
+
+# GitHub Configuration
+github:
+  api-url: https://api.github.com
+
+# Google Classroom Configuration
+google:
+  classroom:
+    api-url: https://classroom.googleapis.com
+  oauth:
+    redirect-uri: ${GOOGLE_OAUTH_REDIRECT_URI:http://localhost:5173/auth/google/callback}
+
+# Logging
+logging:
+  level:
+    com.javaedu: DEBUG
+    org.springframework.security: INFO
+    org.hibernate.SQL: DEBUG
+
+---
+# Development profile - uses H2 in-memory database (no PostgreSQL needed)
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+  # Disable OAuth2 client auto-configuration for dev (no credentials needed)
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.oauth2.client.servlet.OAuth2ClientAutoConfiguration
+
+  datasource:
+    url: jdbc:h2:mem:javaedu;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+
+  flyway:
+    enabled: false
+
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+---
+# Test profile
+spring:
+  config:
+    activate:
+      on-profile: test
+
+  # Disable OAuth2 client auto-configuration for tests
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.oauth2.client.servlet.OAuth2ClientAutoConfiguration
+
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+
+  flyway:
+    enabled: false
+
+---
+# Production profile
+spring:
+  config:
+    activate:
+      on-profile: production
+
+  jpa:
+    show-sql: false
+
+logging:
+  level:
+    com.javaedu: INFO
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN
