@@ -124,7 +124,7 @@ function ExerciseCard({
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">
-            <h3 className="text-lg font-semibold text-gray-900">{exercise.title}</h3>
+            <h3 className="text-lg font-semibold text-gray-900" dir="auto">{exercise.title}</h3>
             <span
               className={`px-2 py-0.5 rounded text-xs font-medium ${
                 difficultyColors[exercise.difficulty]
@@ -138,7 +138,7 @@ function ExerciseCard({
               </span>
             )}
           </div>
-          <p className="text-gray-600 text-sm mb-3 line-clamp-2">{exercise.description}</p>
+          <p className="text-gray-600 text-sm mb-3 line-clamp-2" dir="auto">{exercise.description}</p>
           <div className="flex items-center gap-4 text-sm text-gray-500">
             <span>{exercise.courseName}</span>
             <span>{exercise.points} points</span>

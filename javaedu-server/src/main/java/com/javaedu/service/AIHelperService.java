@@ -73,8 +73,8 @@ public class AIHelperService {
           "description": "Markdown description with requirements, examples, and constraints",
           "starterCode": "public class Solution {\\n    // Method stubs for student to implement\\n}",
           "solutionCode": "public class Solution {\\n    // Complete working solution\\n}",
-          "difficulty": "EASY|MEDIUM|HARD",
-          "category": "BASICS|ARRAYS|STRINGS|LOOPS|CONDITIONALS|METHODS|OOP|ALGORITHMS|DATA_STRUCTURES",
+          "difficulty": "BEGINNER|EASY|MEDIUM|HARD|EXPERT",
+          "category": "BASICS|DATA_STRUCTURES|ALGORITHMS|OOP|DESIGN_PATTERNS|CONCURRENCY|IO|COLLECTIONS",
           "points": 100,
           "testCases": [
             {
@@ -111,6 +111,13 @@ public class AIHelperService {
         - Include clear requirements
         - Show at least one example with expected output
         - List any constraints (e.g., "Array will have at least 1 element")
+
+        Language rules:
+        - Detect the language of the user's input (text prompt or image content)
+        - Generate the title, description, hints, test names, test descriptions, and code comments in the SAME language as the input
+        - Code identifiers (class names, method names, variable names) must remain in English as required by Java
+        - If the input is in Hebrew, write all human-readable text in Hebrew
+        - If the input is in English, write all human-readable text in English
         """;
 
     public AIResponse askQuestion(User user, Long exerciseId, String question, String currentCode) {
@@ -319,7 +326,7 @@ public class AIHelperService {
                     .build();
 
             Map<String, Object> request = Map.of(
-                    "model", "claude-3-5-sonnet-20241022",
+                    "model", "claude-sonnet-4-20250514",
                     "max_tokens", 4096,
                     "system", EXERCISE_GENERATION_PROMPT,
                     "messages", List.of(
@@ -382,11 +389,11 @@ public class AIHelperService {
             // Add text prompt
             Map<String, Object> textContent = new HashMap<>();
             textContent.put("type", "text");
-            textContent.put("text", prompt + "\n\nAnalyze the image above and create a Java exercise based on it.");
+            textContent.put("text", prompt + "\n\nAnalyze the image above and create a Java exercise based on it. Generate all human-readable text (title, description, hints, test descriptions) in the same language as the text in the image.");
             content.add(textContent);
 
             Map<String, Object> request = new HashMap<>();
-            request.put("model", "claude-3-5-sonnet-20241022");
+            request.put("model", "claude-sonnet-4-20250514");
             request.put("max_tokens", 4096);
             request.put("system", EXERCISE_GENERATION_PROMPT);
             request.put("messages", List.of(

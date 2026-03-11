@@ -13,7 +13,7 @@ export default function AIAssistantPanel({ isOpen, onClose, onApply }: AIAssista
   const [image, setImage] = useState<string | null>(null);
   const [imageMediaType, setImageMediaType] = useState<string | null>(null);
   const [imageName, setImageName] = useState<string | null>(null);
-  const [difficulty, setDifficulty] = useState<'EASY' | 'MEDIUM' | 'HARD' | ''>('');
+  const [difficulty, setDifficulty] = useState<'BEGINNER' | 'EASY' | 'MEDIUM' | 'HARD' | 'EXPERT' | ''>('');
   const [category, setCategory] = useState('');
   const [numberOfTestCases, setNumberOfTestCases] = useState(4);
   const [loading, setLoading] = useState(false);
@@ -240,21 +240,31 @@ export default function AIAssistantPanel({ isOpen, onClose, onApply }: AIAssista
                 className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500"
               >
                 <option value="">Auto-detect</option>
+                <option value="BEGINNER">Beginner</option>
                 <option value="EASY">Easy</option>
                 <option value="MEDIUM">Medium</option>
                 <option value="HARD">Hard</option>
+                <option value="EXPERT">Expert</option>
               </select>
             </div>
 
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Category</label>
-              <input
-                type="text"
+              <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                placeholder="e.g., ARRAYS, LOOPS, OOP"
                 className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500"
-              />
+              >
+                <option value="">Auto-detect</option>
+                <option value="BASICS">Basics</option>
+                <option value="DATA_STRUCTURES">Data Structures</option>
+                <option value="ALGORITHMS">Algorithms</option>
+                <option value="OOP">Object-Oriented Programming</option>
+                <option value="DESIGN_PATTERNS">Design Patterns</option>
+                <option value="CONCURRENCY">Concurrency</option>
+                <option value="IO">I/O</option>
+                <option value="COLLECTIONS">Collections</option>
+              </select>
             </div>
 
             <div>
@@ -313,7 +323,7 @@ export default function AIAssistantPanel({ isOpen, onClose, onApply }: AIAssista
             <div className="p-3 space-y-3 text-sm max-h-80 overflow-y-auto">
               <div>
                 <span className="font-medium text-gray-600">Title:</span>
-                <p className="text-gray-800">{generatedExercise.title}</p>
+                <p className="text-gray-800" dir="auto">{generatedExercise.title}</p>
               </div>
               <div>
                 <span className="font-medium text-gray-600">Difficulty:</span>
@@ -339,7 +349,7 @@ export default function AIAssistantPanel({ isOpen, onClose, onApply }: AIAssista
               </div>
               <div>
                 <span className="font-medium text-gray-600">Description:</span>
-                <p className="text-gray-700 text-xs mt-1 whitespace-pre-wrap line-clamp-4">
+                <p className="text-gray-700 text-xs mt-1 whitespace-pre-wrap line-clamp-4" dir="auto">
                   {generatedExercise.description}
                 </p>
               </div>

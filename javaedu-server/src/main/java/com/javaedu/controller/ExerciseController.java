@@ -25,6 +25,14 @@ public class ExerciseController {
     private final ExerciseService exerciseService;
     private final AuthService authService;
 
+    @GetMapping
+    @PreAuthorize("hasRole('TEACHER') or hasRole('ADMIN')")
+    @Operation(summary = "Get all exercises for the current teacher")
+    public ResponseEntity<List<ExerciseDto>> getAllExercises() {
+        var user = authService.getCurrentUser();
+        return ResponseEntity.ok(exerciseService.getExercisesByTeacher(user.getId()));
+    }
+
     @GetMapping("/course/{courseId}")
     @Operation(summary = "Get all exercises for a course")
     public ResponseEntity<List<ExerciseDto>> getExercisesByCourse(@PathVariable Long courseId) {

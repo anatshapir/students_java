@@ -119,7 +119,7 @@ public class TestRunnerService {
             String testClassName = "Test_" + testCase.getId();
             String fullTestCode = wrapTestCode(testClassName, testCase.getTestCode(), extractClassName(submission.getCode()));
 
-            CompilationResult testCompilation = compileTestCode(testClassName, fullTestCode);
+            CompilationResult testCompilation = compileTestCode(testClassName, fullTestCode, compiledClasses);
             if (!testCompilation.isSuccess()) {
                 return TestResult.builder()
                         .submission(submission)
@@ -211,6 +211,8 @@ public class TestRunnerService {
     }
 
     private String wrapTestCode(String testClassName, String testCode, String studentClassName) {
+        // Convert assert statements to explicit if-throw since assertions are disabled by default
+        String convertedTestCode = convertAssertToThrow(testCode);
         return String.format("""
             public class %s {
                 public static Boolean runTest() throws Exception {
@@ -218,10 +220,51 @@ public class TestRunnerService {
                     return true;
                 }
             }
-            """, testClassName, testCode);
+            """, testClassName, convertedTestCode);
     }
 
-    private CompilationResult compileTestCode(String className, String sourceCode) {
+    private String convertAssertToThrow(String testCode) {
+        // Pattern to match: assert condition : "message";
+        // Convert to: if (!(condition)) throw new AssertionError("message");
+        String result = testCode;
+
+        // Match assert with message: assert expr : "msg";
+        Pattern assertWithMsg = Pattern.compile(
+            "assert\\s+(.+?)\\s*:\\s*\"([^\"]+)\"\\s*;",
+            Pattern.DOTALL
+        );
+        Matcher m1 = assertWithMsg.matcher(result);
+        StringBuffer sb1 = new StringBuffer();
+        while (m1.find()) {
+            String condition = m1.group(1).trim();
+            String message = m1.group(2);
+            m1.appendReplacement(sb1, "if (!(" + escapeReplacement(condition) + ")) throw new AssertionError(\"" + escapeReplacement(message) + "\");");
+        }
+        m1.appendTail(sb1);
+        result = sb1.toString();
+
+        // Match assert without message: assert expr;
+        Pattern assertWithoutMsg = Pattern.compile(
+            "assert\\s+([^;:]+)\\s*;",
+            Pattern.DOTALL
+        );
+        Matcher m2 = assertWithoutMsg.matcher(result);
+        StringBuffer sb2 = new StringBuffer();
+        while (m2.find()) {
+            String condition = m2.group(1).trim();
+            m2.appendReplacement(sb2, "if (!(" + escapeReplacement(condition) + ")) throw new AssertionError(\"Assertion failed\");");
+        }
+        m2.appendTail(sb2);
+        result = sb2.toString();
+
+        return result;
+    }
+
+    private String escapeReplacement(String str) {
+        return str.replace("\\", "\\\\").replace("$", "\\$");
+    }
+
+    private CompilationResult compileTestCode(String className, String sourceCode, Map<String, byte[]> studentClasses) {
         try {
             JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
             if (compiler == null) {
@@ -231,6 +274,9 @@ public class TestRunnerService {
 
             InMemoryFileManager fileManager = new InMemoryFileManager(
                     compiler.getStandardFileManager(diagnostics, null, null));
+
+            // Add student's compiled classes so test code can reference them
+            fileManager.addCompiledClasses(studentClasses);
 
             JavaFileObject sourceFile = new InMemoryJavaFileObject(className, sourceCode);
             fileManager.addSource(className, sourceFile);
@@ -347,6 +393,7 @@ public class TestRunnerService {
     private static class InMemoryFileManager extends ForwardingJavaFileManager<StandardJavaFileManager> {
         private final Map<String, InMemoryClassFileObject> classFiles = new HashMap<>();
         private final Map<String, JavaFileObject> sourceFiles = new HashMap<>();
+        private final Map<String, byte[]> precompiledClasses = new HashMap<>();
 
         InMemoryFileManager(StandardJavaFileManager fileManager) {
             super(fileManager);
@@ -356,6 +403,12 @@ public class TestRunnerService {
             sourceFiles.put(className, source);
         }
 
+        void addCompiledClasses(Map<String, byte[]> classes) {
+            if (classes != null) {
+                precompiledClasses.putAll(classes);
+            }
+        }
+
         @Override
         public JavaFileObject getJavaFileForInput(Location location, String className,
                                                   JavaFileObject.Kind kind) throws java.io.IOException {
@@ -363,6 +416,12 @@ public class TestRunnerService {
                 JavaFileObject source = sourceFiles.get(className);
                 if (source != null) {
                     return source;
+                }
+            }
+            if (kind == JavaFileObject.Kind.CLASS) {
+                byte[] bytes = precompiledClasses.get(className);
+                if (bytes != null) {
+                    return new InMemoryClassInputObject(className, bytes);
                 }
             }
             return super.getJavaFileForInput(location, className, kind);
@@ -376,12 +435,76 @@ public class TestRunnerService {
             return classFile;
         }
 
+        @Override
+        public ClassLoader getClassLoader(Location location) {
+            return new ClassLoader(getClass().getClassLoader()) {
+                @Override
+                protected Class<?> findClass(String name) throws ClassNotFoundException {
+                    byte[] bytes = precompiledClasses.get(name);
+                    if (bytes != null) {
+                        return defineClass(name, bytes, 0, bytes.length);
+                    }
+                    throw new ClassNotFoundException(name);
+                }
+            };
+        }
+
+        @Override
+        public Iterable<JavaFileObject> list(Location location, String packageName,
+                                             Set<JavaFileObject.Kind> kinds, boolean recurse) throws java.io.IOException {
+            Iterable<JavaFileObject> superList = super.list(location, packageName, kinds, recurse);
+
+            if (kinds.contains(JavaFileObject.Kind.CLASS) && (packageName.isEmpty() || packageName.equals(""))) {
+                List<JavaFileObject> result = new ArrayList<>();
+                for (JavaFileObject fo : superList) {
+                    result.add(fo);
+                }
+                // Add precompiled classes from default package
+                for (Map.Entry<String, byte[]> entry : precompiledClasses.entrySet()) {
+                    String className = entry.getKey();
+                    if (!className.contains(".")) { // Default package
+                        result.add(new InMemoryClassInputObject(className, entry.getValue()));
+                    }
+                }
+                return result;
+            }
+            return superList;
+        }
+
+        @Override
+        public String inferBinaryName(Location location, JavaFileObject file) {
+            if (file instanceof InMemoryClassInputObject) {
+                return ((InMemoryClassInputObject) file).getClassName();
+            }
+            return super.inferBinaryName(location, file);
+        }
+
         Map<String, byte[]> getCompiledClasses() {
             Map<String, byte[]> result = new HashMap<>();
             for (Map.Entry<String, InMemoryClassFileObject> entry : classFiles.entrySet()) {
                 result.put(entry.getKey(), entry.getValue().getBytes());
             }
             return result;
+        }
+    }
+
+    private static class InMemoryClassInputObject extends SimpleJavaFileObject {
+        private final byte[] bytes;
+        private final String className;
+
+        InMemoryClassInputObject(String className, byte[] bytes) {
+            super(URI.create("mem:///" + className.replace('.', '/') + Kind.CLASS.extension), Kind.CLASS);
+            this.bytes = bytes;
+            this.className = className;
+        }
+
+        @Override
+        public java.io.InputStream openInputStream() {
+            return new java.io.ByteArrayInputStream(bytes);
+        }
+
+        String getClassName() {
+            return className;
         }
     }
 }

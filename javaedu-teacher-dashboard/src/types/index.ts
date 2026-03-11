@@ -27,7 +27,7 @@ export interface Exercise {
   title: string;
   description: string;
   starterCode: string;
-  difficulty: 'EASY' | 'MEDIUM' | 'HARD';
+  difficulty: 'BEGINNER' | 'EASY' | 'MEDIUM' | 'HARD' | 'EXPERT';
   points: number;
   category: string;
   isPublished: boolean;
@@ -217,7 +217,7 @@ export interface GenerateExerciseRequest {
   prompt: string;
   image?: string;              // Base64-encoded image
   imageMediaType?: string;     // "image/png", "image/jpeg", etc.
-  difficulty?: 'EASY' | 'MEDIUM' | 'HARD';
+  difficulty?: 'BEGINNER' | 'EASY' | 'MEDIUM' | 'HARD' | 'EXPERT';
   category?: string;
   numberOfTestCases?: number;
 }
@@ -235,7 +235,7 @@ export interface GeneratedExercise {
   description: string;
   starterCode: string;
   solutionCode: string;
-  difficulty: 'EASY' | 'MEDIUM' | 'HARD';
+  difficulty: 'BEGINNER' | 'EASY' | 'MEDIUM' | 'HARD' | 'EXPERT';
   category: string;
   points: number;
   testCases: GeneratedTestCase[];

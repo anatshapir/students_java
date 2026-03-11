@@ -27,6 +27,13 @@ public class ExerciseService {
     private final HintRepository hintRepository;
 
     @Transactional(readOnly = true)
+    public List<ExerciseDto> getExercisesByTeacher(Long teacherId) {
+        return exerciseRepository.findByTeacherId(teacherId).stream()
+                .map(ExerciseDto::fromEntity)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
     public List<ExerciseDto> getExercisesByCourse(Long courseId) {
         return exerciseRepository.findByCourseId(courseId).stream()
                 .map(ExerciseDto::fromEntity)

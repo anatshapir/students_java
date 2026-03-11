@@ -30,4 +30,7 @@ public interface ExerciseRepository extends JpaRepository<Exercise, Long> {
 
     @Query("SELECT COUNT(e) FROM Exercise e WHERE e.course.id = :courseId")
     long countByCourseId(Long courseId);
+
+    @Query("SELECT e FROM Exercise e WHERE e.course.teacher.id = :teacherId ORDER BY e.createdAt DESC")
+    List<Exercise> findByTeacherId(Long teacherId);
 }

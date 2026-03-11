@@ -11,12 +11,34 @@ interface ExerciseForm {
   description: string;
   starterCode: string;
   solutionCode?: string;
-  difficulty: 'EASY' | 'MEDIUM' | 'HARD';
+  difficulty: 'BEGINNER' | 'EASY' | 'MEDIUM' | 'HARD' | 'EXPERT';
   points: number;
   category: string;
   courseId: number;
   testCases: TestCase[];
 }
+
+const CATEGORIES = [
+  'BASICS',
+  'DATA_STRUCTURES',
+  'ALGORITHMS',
+  'OOP',
+  'DESIGN_PATTERNS',
+  'CONCURRENCY',
+  'IO',
+  'COLLECTIONS',
+] as const;
+
+const CATEGORY_LABELS: Record<string, string> = {
+  BASICS: 'Basics',
+  DATA_STRUCTURES: 'Data Structures',
+  ALGORITHMS: 'Algorithms',
+  OOP: 'Object-Oriented Programming',
+  DESIGN_PATTERNS: 'Design Patterns',
+  CONCURRENCY: 'Concurrency',
+  IO: 'I/O',
+  COLLECTIONS: 'Collections',
+};
 
 const defaultStarterCode = `public class Solution {
     public static void main(String[] args) {
@@ -31,7 +53,7 @@ const defaultForm: ExerciseForm = {
   solutionCode: '',
   difficulty: 'EASY',
   points: 100,
-  category: 'General',
+  category: 'BASICS',
   courseId: 0,
   testCases: [],
 };
@@ -274,6 +296,7 @@ function DetailsTab({
           value={form.title}
           onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
           required
+          dir="auto"
           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
           placeholder="Exercise title"
         />
@@ -285,6 +308,7 @@ function DetailsTab({
           value={form.description}
           onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
           required
+          dir="auto"
           rows={4}
           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
           placeholder="Describe what the student needs to implement..."
@@ -315,14 +339,16 @@ function DetailsTab({
             onChange={(e) =>
               setForm((f) => ({
                 ...f,
-                difficulty: e.target.value as 'EASY' | 'MEDIUM' | 'HARD',
+                difficulty: e.target.value as ExerciseForm['difficulty'],
               }))
             }
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
           >
+            <option value="BEGINNER">Beginner</option>
             <option value="EASY">Easy</option>
             <option value="MEDIUM">Medium</option>
             <option value="HARD">Hard</option>
+            <option value="EXPERT">Expert</option>
           </select>
         </div>
 
@@ -339,13 +365,17 @@ function DetailsTab({
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-          <input
-            type="text"
+          <select
             value={form.category}
             onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            placeholder="e.g., Arrays, Loops, OOP"
-          />
+          >
+            {CATEGORIES.map((cat) => (
+              <option key={cat} value={cat}>
+                {CATEGORY_LABELS[cat]}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
     </div>
@@ -461,7 +491,7 @@ function TestsTab({
                   >
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
-                  <span className="text-sm font-medium text-gray-700">
+                  <span className="text-sm font-medium text-gray-700" dir="auto">
                     {tc.name || `Test Case ${index + 1}`}
                   </span>
                   {tc.isHidden && (
@@ -495,6 +525,7 @@ function TestsTab({
                         value={tc.name}
                         onChange={(e) => onUpdate(index, { name: e.target.value })}
                         placeholder="e.g., Test basic addition"
+                        dir="auto"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
@@ -505,6 +536,7 @@ function TestsTab({
                         value={tc.description || ''}
                         onChange={(e) => onUpdate(index, { description: e.target.value })}
                         placeholder="What this test checks"
+                        dir="auto"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                       />
                     </div>

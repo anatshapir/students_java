@@ -29,6 +29,13 @@ jwt:
   expiration: 3600000
   refresh-expiration: 86400000
 
+# AI configuration for tests
+ai:
+  api-key: test-api-key-for-integration-tests
+  rate-limit:
+    requests-per-hour: 10
+    requests-per-day: 50
+
 # Logging
 logging:
   level:
