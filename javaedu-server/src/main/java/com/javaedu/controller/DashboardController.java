@@ -17,6 +17,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import org.springframework.data.domain.PageRequest;
+
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
@@ -34,6 +36,62 @@ public class DashboardController {
     private final GradeRepository gradeRepository;
     private final UserRepository userRepository;
     private final LearningEngineService learningEngineService;
+
+    // --- Endpoints matching frontend API client ---
+
+    @GetMapping("/{courseId}/stats")
+    @PreAuthorize("hasRole('TEACHER') or hasRole('ADMIN')")
+    @Operation(summary = "Get dashboard stats for a course")
+    public ResponseEntity<DashboardStatsResponse> getDashboardStats(@PathVariable Long courseId) {
+        Course course = courseRepository.findById(courseId)
+                .orElseThrow(() -> new RuntimeException("Course not found"));
+
+        int totalStudents = course.getStudents().size();
+        int totalExercises = course.getExercises().size();
+
+        var recentPage = submissionRepository.findByCourseId(courseId, PageRequest.of(0, 5));
+        List<SubmissionSummary> recentSubmissions = recentPage.getContent().stream()
+                .map(s -> new SubmissionSummary(
+                        s.getId(),
+                        s.getExercise().getId(),
+                        s.getExercise().getTitle(),
+                        s.getUser().getId(),
+                        s.getUser().getName(),
+                        s.getCode(),
+                        s.getStatus().name(),
+                        s.getGrade() != null ? s.getGrade().getScore() : null,
+                        s.getGrade() != null ? s.getGrade().getMaxScore() : null,
+                        s.getSubmittedAt().toString()
+                ))
+                .toList();
+
+        int totalSubmissions = (int) submissionRepository.findByCourseId(courseId, PageRequest.of(0, 1)).getTotalElements();
+
+        // Compute completion rate
+        int completedStudents = 0;
+        if (totalExercises > 0 && totalStudents > 0) {
+            for (var student : course.getStudents()) {
+                var progress = learningEngineService.getStudentProgress(student.getId(), courseId);
+                if (progress.completedExercises() == progress.totalExercises() && progress.totalExercises() > 0) {
+                    completedStudents++;
+                }
+            }
+        }
+        double completionRate = totalStudents > 0 ? (double) completedStudents / totalStudents * 100 : 0;
+
+        List<LearningEngineService.StrugglingStudent> struggling =
+                learningEngineService.identifyStrugglingStudents(courseId);
+
+        List<StrugglingStudentSummary> strugglingStudents = struggling.stream()
+                .map(s -> new StrugglingStudentSummary(s.userId(), s.name(), s.email(),
+                        s.incompleteExercises(), s.totalAttempts()))
+                .toList();
+
+        return ResponseEntity.ok(new DashboardStatsResponse(
+                totalStudents, totalExercises, totalSubmissions, completionRate,
+                recentSubmissions, strugglingStudents
+        ));
+    }
 
     @GetMapping("/teacher/overview")
     @PreAuthorize("hasRole('TEACHER') or hasRole('ADMIN')")
@@ -206,6 +264,38 @@ public class DashboardController {
             String courseName,
             int completedExercises,
             int totalExercises,
+            int totalAttempts
+    ) {}
+
+    // --- Response types matching frontend DashboardStats ---
+
+    public record DashboardStatsResponse(
+            int totalStudents,
+            int totalExercises,
+            int totalSubmissions,
+            double averageCompletionRate,
+            List<SubmissionSummary> recentSubmissions,
+            List<StrugglingStudentSummary> strugglingStudents
+    ) {}
+
+    public record SubmissionSummary(
+            Long id,
+            Long exerciseId,
+            String exerciseTitle,
+            Long userId,
+            String userName,
+            String code,
+            String status,
+            Integer score,
+            Integer maxScore,
+            String submittedAt
+    ) {}
+
+    public record StrugglingStudentSummary(
+            Long userId,
+            String userName,
+            String email,
+            int incompleteExercises,
             int totalAttempts
     ) {}
 }
