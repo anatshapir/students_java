@@ -8,6 +8,7 @@ import com.javaedu.model.*;
 import com.javaedu.repository.CourseRepository;
 import com.javaedu.repository.ExerciseRepository;
 import com.javaedu.repository.HintRepository;
+import com.javaedu.repository.StudentAnalyticsRepository;
 import com.javaedu.repository.TestCaseRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +28,7 @@ public class ExerciseService {
     private final CourseRepository courseRepository;
     private final TestCaseRepository testCaseRepository;
     private final HintRepository hintRepository;
+    private final StudentAnalyticsRepository studentAnalyticsRepository;
 
     @Transactional(readOnly = true)
     public List<ExerciseDto> getExercisesByTeacher(Long teacherId) {
@@ -194,6 +196,16 @@ public class ExerciseService {
     }
 
     @Transactional
+    public ExerciseDto publishExercise(Long exerciseId) {
+        Exercise exercise = exerciseRepository.findById(exerciseId)
+                .orElseThrow(() -> new ResourceNotFoundException("Exercise", "id", exerciseId));
+        exercise.setIsPublished(true);
+        exercise = exerciseRepository.save(exercise);
+        log.info("Published exercise: {}", exercise.getTitle());
+        return ExerciseDto.fromEntityWithDetails(exercise);
+    }
+
+    @Transactional
     public void deleteExercise(Long exerciseId) {
         Exercise exercise = exerciseRepository.findById(exerciseId)
                 .orElseThrow(() -> new ResourceNotFoundException("Exercise", "id", exerciseId));
@@ -204,14 +216,36 @@ public class ExerciseService {
     /**
      * Returns hints for a student up to the requested hint number (progressive reveal).
      * Students request hint N and get hints 1..N.
+     * Also tracks how many hints the student has used for penalty calculation.
      */
-    @Transactional(readOnly = true)
-    public List<HintDto> getHintsForStudent(Long exerciseId, int upToOrder) {
+    @Transactional
+    public List<HintDto> getHintsForStudent(Long exerciseId, int upToOrder, User user) {
         List<Hint> allHints = hintRepository.findByExerciseIdOrderByOrderNumAsc(exerciseId);
-        return allHints.stream()
+        List<HintDto> result = allHints.stream()
                 .filter(h -> h.getOrderNum() <= upToOrder)
                 .map(HintDto::fromEntity)
                 .toList();
+
+        // Track hint usage for students (only increase, never decrease)
+        if (user.getRole() == User.Role.STUDENT && upToOrder > 0) {
+            Exercise exercise = exerciseRepository.findById(exerciseId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Exercise", "id", exerciseId));
+            StudentAnalytics analytics = studentAnalyticsRepository
+                    .findByUserIdAndExerciseId(user.getId(), exerciseId)
+                    .orElseGet(() -> {
+                        StudentAnalytics newAnalytics = StudentAnalytics.builder()
+                                .user(user)
+                                .exercise(exercise)
+                                .build();
+                        return studentAnalyticsRepository.save(newAnalytics);
+                    });
+            if (upToOrder > analytics.getHintsUsed()) {
+                analytics.setHintsUsed(upToOrder);
+                studentAnalyticsRepository.save(analytics);
+            }
+        }
+
+        return result;
     }
 
     @Transactional(readOnly = true)

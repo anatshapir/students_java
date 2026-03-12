@@ -99,13 +99,21 @@ public class ExerciseController {
     public ResponseEntity<Map<String, Object>> getHints(
             @PathVariable Long exerciseId,
             @RequestParam(defaultValue = "1") int upTo) {
-        List<HintDto> hints = exerciseService.getHintsForStudent(exerciseId, upTo);
+        var user = authService.getCurrentUser();
+        List<HintDto> hints = exerciseService.getHintsForStudent(exerciseId, upTo, user);
         int totalHints = exerciseService.getHintCount(exerciseId);
         return ResponseEntity.ok(Map.of(
                 "hints", hints,
                 "totalHints", totalHints,
                 "hasMore", upTo < totalHints
         ));
+    }
+
+    @PostMapping("/{exerciseId}/publish")
+    @PreAuthorize("hasRole('TEACHER') or hasRole('ADMIN')")
+    @Operation(summary = "Publish an exercise to make it visible to students")
+    public ResponseEntity<ExerciseDto> publishExercise(@PathVariable Long exerciseId) {
+        return ResponseEntity.ok(exerciseService.publishExercise(exerciseId));
     }
 
     @GetMapping("/category/{category}")

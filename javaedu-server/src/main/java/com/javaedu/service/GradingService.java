@@ -2,6 +2,7 @@ package com.javaedu.service;
 
 import com.javaedu.model.*;
 import com.javaedu.repository.GradeRepository;
+import com.javaedu.repository.HintRepository;
 import com.javaedu.repository.StudentAnalyticsRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +19,7 @@ public class GradingService {
 
     private final GradeRepository gradeRepository;
     private final StudentAnalyticsRepository analyticsRepository;
+    private final HintRepository hintRepository;
 
     @Transactional
     public Grade gradeSubmission(Submission submission) {
@@ -39,10 +41,20 @@ public class GradingService {
             totalPoints = exercise.getPoints();
         }
 
+        // Apply hint penalties
+        int hintPenaltyPercent = calculateHintPenalty(submission.getUser(), exercise);
+        if (hintPenaltyPercent > 0 && earnedPoints > 0) {
+            int penalty = (int) Math.round(earnedPoints * hintPenaltyPercent / 100.0);
+            earnedPoints = Math.max(0, earnedPoints - penalty);
+        }
+
         StringBuilder feedback = new StringBuilder();
         feedback.append(String.format("Passed %d of %d tests.%n",
                 testResults.stream().filter(TestResult::getPassed).count(),
                 testResults.size()));
+        if (hintPenaltyPercent > 0) {
+            feedback.append(String.format("Hint penalty: -%d%%%n", hintPenaltyPercent));
+        }
 
         for (TestResult result : testResults) {
             if (!result.getTestCase().getIsHidden()) {
@@ -74,6 +86,25 @@ public class GradingService {
                 submission.getId(), earnedPoints, totalPoints, grade.getPercentage());
 
         return grade;
+    }
+
+    /**
+     * Calculates the total hint penalty percentage for a student on an exercise.
+     * Sums up penaltyPercentage for the first N hints (where N = hintsUsed from analytics).
+     */
+    private int calculateHintPenalty(User user, Exercise exercise) {
+        return analyticsRepository.findByUserIdAndExerciseId(user.getId(), exercise.getId())
+                .map(analytics -> {
+                    int hintsUsed = analytics.getHintsUsed();
+                    if (hintsUsed <= 0) return 0;
+
+                    List<Hint> hints = hintRepository.findByExerciseIdOrderByOrderNumAsc(exercise.getId());
+                    return hints.stream()
+                            .filter(h -> h.getOrderNum() <= hintsUsed)
+                            .mapToInt(Hint::getPenaltyPercentage)
+                            .sum();
+                })
+                .orElse(0);
     }
 
     private void markExerciseCompleted(User user, Exercise exercise) {
