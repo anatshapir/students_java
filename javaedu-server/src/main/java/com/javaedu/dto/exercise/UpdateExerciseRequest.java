@@ -1,6 +1,7 @@
 package com.javaedu.dto.exercise;
 
 import com.javaedu.model.Exercise;
+import jakarta.validation.constraints.Positive;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -14,7 +15,10 @@ public class UpdateExerciseRequest {
     private String starterCode;
     private String solutionCode;
     private Exercise.Difficulty difficulty;
+
+    @Positive(message = "Points must be positive")
     private Integer points;
+
     private Exercise.Category category;
     private LocalDateTime dueDate;
     private Boolean isPublished;

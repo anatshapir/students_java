@@ -11,8 +11,14 @@ import org.eclipse.ui.part.ViewPart;
 
 import com.javaedu.eclipse.model.Exercise;
 import com.javaedu.eclipse.model.Hint;
+import com.javaedu.eclipse.services.ApiClient;
 import com.javaedu.eclipse.services.ExerciseManager;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonArray;
+import com.google.gson.Gson;
+
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -31,6 +37,8 @@ public class ExerciseDetailView extends ViewPart {
     private Label pointsLabel;
     private Label dueDateLabel;
     private int revealedHints = 0;
+    private int totalHintsAvailable = 0;
+    private List<Hint> fetchedHints = new ArrayList<>();
 
     @Override
     public void createPartControl(Composite parent) {
@@ -115,6 +123,8 @@ public class ExerciseDetailView extends ViewPart {
     public void showExercise(Exercise exercise) {
         this.currentExercise = exercise;
         this.revealedHints = 0;
+        this.fetchedHints = new ArrayList<>();
+        this.totalHintsAvailable = exercise.getHints() != null ? exercise.getHints().size() : 0;
 
         Display.getDefault().asyncExec(() -> {
             titleLabel.setText(exercise.getTitle());
@@ -131,7 +141,7 @@ public class ExerciseDetailView extends ViewPart {
             // Show starter code
             starterCodeText.setText(exercise.getStarterCode() != null ? exercise.getStarterCode() : "");
 
-            // Reset hints
+            // Reset hints display
             updateHintsDisplay();
         });
     }
@@ -142,46 +152,91 @@ public class ExerciseDetailView extends ViewPart {
             child.dispose();
         }
 
-        if (currentExercise == null || currentExercise.getHints() == null) {
+        if (currentExercise == null) {
             Label noHints = new Label(hintsContainer, SWT.NONE);
-            noHints.setText("No hints available for this exercise.");
+            noHints.setText("No exercise selected.");
             hintsContainer.layout();
             return;
         }
 
-        List<Hint> hints = currentExercise.getHints();
-
-        // Show revealed hints
-        for (int i = 0; i < revealedHints && i < hints.size(); i++) {
+        // Show fetched hints
+        for (Hint hint : fetchedHints) {
             Group hintGroup = new Group(hintsContainer, SWT.NONE);
-            hintGroup.setText("Hint " + (i + 1));
+            hintGroup.setText("Hint " + hint.getOrderNum());
             hintGroup.setLayout(new GridLayout(1, false));
             hintGroup.setLayoutData(new GridData(SWT.FILL, SWT.TOP, true, false));
 
             Text hintText = new Text(hintGroup, SWT.MULTI | SWT.WRAP | SWT.READ_ONLY);
-            hintText.setText(hints.get(i).getContent());
+            hintText.setText(hint.getContent());
             GridData hintData = new GridData(SWT.FILL, SWT.TOP, true, false);
             hintData.heightHint = 60;
             hintText.setLayoutData(hintData);
+
+            if (hint.getPenaltyPercentage() > 0) {
+                Label penaltyLabel = new Label(hintGroup, SWT.NONE);
+                penaltyLabel.setText("Score penalty: -" + hint.getPenaltyPercentage() + "%");
+            }
         }
 
         // Show "Reveal next hint" button if more hints available
-        if (revealedHints < hints.size()) {
+        if (revealedHints < totalHintsAvailable) {
+            // Show penalty warning for next hint
+            int nextHintPenalty = getNextHintPenalty();
+            if (nextHintPenalty > 0) {
+                Label warningLabel = new Label(hintsContainer, SWT.NONE);
+                warningLabel.setText("Warning: Revealing the next hint will reduce your score by " + nextHintPenalty + "%");
+            }
+
             Button revealButton = new Button(hintsContainer, SWT.PUSH);
-            int remaining = hints.size() - revealedHints;
+            int remaining = totalHintsAvailable - revealedHints;
             revealButton.setText("Reveal Next Hint (" + remaining + " remaining)");
             revealButton.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
-            revealButton.addListener(SWT.Selection, e -> {
-                revealedHints++;
-                updateHintsDisplay();
-            });
-        } else if (hints.size() > 0) {
+            revealButton.addListener(SWT.Selection, e -> revealNextHint());
+        } else if (totalHintsAvailable > 0) {
             Label allRevealed = new Label(hintsContainer, SWT.NONE);
             allRevealed.setText("All hints revealed.");
+        } else {
+            Label noHints = new Label(hintsContainer, SWT.NONE);
+            noHints.setText("No hints available for this exercise.");
         }
 
         hintsContainer.layout();
         hintsContainer.getParent().layout();
+    }
+
+    private void revealNextHint() {
+        if (currentExercise == null) return;
+
+        revealedHints++;
+        new Thread(() -> {
+            try {
+                JsonObject response = ApiClient.getInstance().getHints(currentExercise.getId(), revealedHints);
+                JsonArray hintsArray = response.getAsJsonArray("hints");
+                totalHintsAvailable = response.get("totalHints").getAsInt();
+
+                Gson gson = new Gson();
+                List<Hint> hints = new ArrayList<>();
+                for (int i = 0; i < hintsArray.size(); i++) {
+                    hints.add(gson.fromJson(hintsArray.get(i), Hint.class));
+                }
+                fetchedHints = hints;
+
+                Display.getDefault().asyncExec(this::updateHintsDisplay);
+            } catch (Exception ex) {
+                Display.getDefault().asyncExec(() -> {
+                    revealedHints--;
+                    updateHintsDisplay();
+                });
+            }
+        }).start();
+    }
+
+    private int getNextHintPenalty() {
+        // Try to get penalty from exercise's hint list if available
+        if (currentExercise.getHints() != null && revealedHints < currentExercise.getHints().size()) {
+            return currentExercise.getHints().get(revealedHints).getPenaltyPercentage();
+        }
+        return 0;
     }
 
     private void copyStarterCode() {

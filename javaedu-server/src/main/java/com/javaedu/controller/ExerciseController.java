@@ -82,7 +82,7 @@ public class ExerciseController {
     @Operation(summary = "Update an exercise")
     public ResponseEntity<ExerciseDto> updateExercise(
             @PathVariable Long exerciseId,
-            @RequestBody UpdateExerciseRequest request) {
+            @Valid @RequestBody UpdateExerciseRequest request) {
         return ResponseEntity.ok(exerciseService.updateExercise(exerciseId, request));
     }
 

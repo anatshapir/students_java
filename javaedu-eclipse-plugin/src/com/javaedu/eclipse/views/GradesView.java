@@ -21,6 +21,7 @@ public class GradesView extends ViewPart {
     public static final String ID = "com.javaedu.eclipse.views.GradesView";
 
     private TableViewer tableViewer;
+    private Label totalSubmissionsLabel;
     private Label summaryLabel;
     private Text feedbackText;
 
@@ -36,8 +37,8 @@ public class GradesView extends ViewPart {
         summaryGroup.setLayoutData(new GridData(SWT.FILL, SWT.TOP, true, false));
 
         new Label(summaryGroup, SWT.NONE).setText("Total Submissions:");
-        Label totalLabel = new Label(summaryGroup, SWT.NONE);
-        totalLabel.setText("0");
+        totalSubmissionsLabel = new Label(summaryGroup, SWT.NONE);
+        totalSubmissionsLabel.setText("0");
 
         new Label(summaryGroup, SWT.NONE).setText("Average Grade:");
         summaryLabel = new Label(summaryGroup, SWT.NONE);
@@ -122,7 +123,8 @@ public class GradesView extends ViewPart {
                 List<Submission> submissions = ApiClient.getInstance().getMySubmissions();
                 tableViewer.setInput(submissions);
 
-                // Calculate summary
+                // Update summary
+                totalSubmissionsLabel.setText(String.valueOf(submissions.size()));
                 if (!submissions.isEmpty()) {
                     double avgGrade = submissions.stream()
                             .filter(s -> s.getGrade() != null)

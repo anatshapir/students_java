@@ -1,9 +1,8 @@
 package com.javaedu.dto.exercise;
 
 import com.javaedu.model.Exercise;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.*;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -33,8 +32,8 @@ public class CreateExerciseRequest {
     private Exercise.Category category;
     private LocalDateTime dueDate;
     private Boolean isPublished = false;
-    private List<TestCaseRequest> testCases;
-    private List<HintRequest> hints;
+    private List<@Valid TestCaseRequest> testCases;
+    private List<@Valid HintRequest> hints;
 
     @Data
     public static class TestCaseRequest {
@@ -47,8 +46,13 @@ public class CreateExerciseRequest {
         private String input;
         private String expectedOutput;
         private Boolean isHidden = false;
+
+        @Positive(message = "Test case points must be positive")
         private Integer points = 10;
+
         private Integer orderNum = 0;
+
+        @Positive(message = "Timeout must be positive")
         private Integer timeoutSeconds = 5;
     }
 
@@ -58,6 +62,9 @@ public class CreateExerciseRequest {
         private String content;
 
         private Integer orderNum = 0;
+
+        @Min(value = 0, message = "Penalty percentage cannot be negative")
+        @Max(value = 100, message = "Penalty percentage cannot exceed 100")
         private Integer penaltyPercentage = 0;
     }
 }
