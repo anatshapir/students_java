@@ -2,6 +2,7 @@ package com.javaedu.controller;
 
 import com.javaedu.dto.exercise.CreateExerciseRequest;
 import com.javaedu.dto.exercise.ExerciseDto;
+import com.javaedu.dto.exercise.HintDto;
 import com.javaedu.dto.exercise.UpdateExerciseRequest;
 import com.javaedu.model.Exercise;
 import com.javaedu.service.AuthService;
@@ -15,6 +16,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/exercises")
@@ -90,6 +92,20 @@ public class ExerciseController {
     public ResponseEntity<Void> deleteExercise(@PathVariable Long exerciseId) {
         exerciseService.deleteExercise(exerciseId);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{exerciseId}/hints")
+    @Operation(summary = "Get hints for an exercise (progressive reveal for students)")
+    public ResponseEntity<Map<String, Object>> getHints(
+            @PathVariable Long exerciseId,
+            @RequestParam(defaultValue = "1") int upTo) {
+        List<HintDto> hints = exerciseService.getHintsForStudent(exerciseId, upTo);
+        int totalHints = exerciseService.getHintCount(exerciseId);
+        return ResponseEntity.ok(Map.of(
+                "hints", hints,
+                "totalHints", totalHints,
+                "hasMore", upTo < totalHints
+        ));
     }
 
     @GetMapping("/category/{category}")

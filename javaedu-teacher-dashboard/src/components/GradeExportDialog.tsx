@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { previewGradeExport, exportGrades } from '../api/client';
+import { previewGradeExport, exportGrades, exportGradesCsv } from '../api/client';
 import type { Course, GradeExportPreview } from '../types';
 
 interface GradeExportDialogProps {
@@ -10,6 +10,7 @@ interface GradeExportDialogProps {
 export default function GradeExportDialog({ course, onClose }: GradeExportDialogProps) {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [downloadingCsv, setDownloadingCsv] = useState(false);
   const [preview, setPreview] = useState<GradeExportPreview | null>(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -45,12 +46,26 @@ export default function GradeExportDialog({ course, onClose }: GradeExportDialog
     }
   };
 
+  const handleDownloadCsv = async () => {
+    setDownloadingCsv(true);
+    setError('');
+
+    try {
+      await exportGradesCsv(course.id);
+    } catch (err) {
+      setError('Failed to download CSV');
+      console.error('Failed to download CSV:', err);
+    } finally {
+      setDownloadingCsv(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-lg w-full max-w-lg">
         <div className="p-6 border-b">
           <h2 className="text-xl font-semibold text-gray-900">
-            Export Grades to Google Classroom
+            Export Grades
           </h2>
           <p className="text-sm text-gray-600 mt-1">{course.name}</p>
         </div>
@@ -136,13 +151,24 @@ export default function GradeExportDialog({ course, onClose }: GradeExportDialog
             {success ? 'Close' : 'Cancel'}
           </button>
           {!success && preview && preview.exercises.length > 0 && (
-            <button
-              onClick={handleExport}
-              disabled={exporting}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-            >
-              {exporting ? 'Exporting...' : 'Export Grades'}
-            </button>
+            <>
+              <button
+                onClick={handleDownloadCsv}
+                disabled={downloadingCsv}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+              >
+                {downloadingCsv ? 'Downloading...' : 'Download CSV'}
+              </button>
+              {course.googleClassroomId && (
+                <button
+                  onClick={handleExport}
+                  disabled={exporting}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  {exporting ? 'Exporting...' : 'Export to Classroom'}
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>

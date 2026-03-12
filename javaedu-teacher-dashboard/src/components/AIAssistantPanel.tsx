@@ -353,6 +353,18 @@ export default function AIAssistantPanel({ isOpen, onClose, onApply }: AIAssista
                   {generatedExercise.description}
                 </p>
               </div>
+              {generatedExercise.hints && generatedExercise.hints.length > 0 && (
+                <div>
+                  <span className="font-medium text-gray-600">Hints:</span>
+                  <ul className="mt-1 space-y-1">
+                    {generatedExercise.hints.map((hint, i) => (
+                      <li key={i} className="text-gray-700 text-xs" dir="auto">
+                        {i + 1}. {hint}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           </div>
         )}

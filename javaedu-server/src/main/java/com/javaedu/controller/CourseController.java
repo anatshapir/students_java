@@ -13,6 +13,9 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import com.javaedu.service.GradeExportService;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +35,7 @@ public class CourseController {
     private final UserRepository userRepository;
     private final AuthService authService;
     private final GoogleClassroomService googleClassroomService;
+    private final GradeExportService gradeExportService;
 
     @GetMapping
     @Operation(summary = "Get courses for current user")
@@ -399,6 +403,29 @@ public class CourseController {
     public ResponseEntity<GoogleClassroomService.GradeExportPreview> previewGradeExport(
             @PathVariable Long courseId) {
         return ResponseEntity.ok(googleClassroomService.previewGradeExport(courseId));
+    }
+
+    @GetMapping("/{courseId}/grades/export/csv")
+    @PreAuthorize("hasRole('TEACHER') or hasRole('ADMIN')")
+    @Operation(summary = "Download grades as CSV file")
+    public ResponseEntity<byte[]> exportGradesCsv(@PathVariable Long courseId) {
+        Course course = courseRepository.findById(courseId)
+                .orElseThrow(() -> new ResourceNotFoundException("Course", "id", courseId));
+
+        String csv = gradeExportService.exportGradesToCsv(courseId);
+        String filename = course.getName().replaceAll("[^a-zA-Z0-9._-]", "_") + "_grades.csv";
+
+        // Add BOM for Excel UTF-8 compatibility
+        byte[] bom = new byte[]{(byte) 0xEF, (byte) 0xBB, (byte) 0xBF};
+        byte[] csvBytes = csv.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] result = new byte[bom.length + csvBytes.length];
+        System.arraycopy(bom, 0, result, 0, bom.length);
+        System.arraycopy(csvBytes, 0, result, bom.length, csvBytes.length);
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
+                .body(result);
     }
 
     @PostMapping("/{courseId}/grades/export")

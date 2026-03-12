@@ -14,6 +14,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.javaedu.dto.exercise.HintDto;
+
 import java.util.List;
 
 @Service
@@ -197,6 +199,24 @@ public class ExerciseService {
                 .orElseThrow(() -> new ResourceNotFoundException("Exercise", "id", exerciseId));
         exerciseRepository.delete(exercise);
         log.info("Deleted exercise: {}", exercise.getTitle());
+    }
+
+    /**
+     * Returns hints for a student up to the requested hint number (progressive reveal).
+     * Students request hint N and get hints 1..N.
+     */
+    @Transactional(readOnly = true)
+    public List<HintDto> getHintsForStudent(Long exerciseId, int upToOrder) {
+        List<Hint> allHints = hintRepository.findByExerciseIdOrderByOrderNumAsc(exerciseId);
+        return allHints.stream()
+                .filter(h -> h.getOrderNum() <= upToOrder)
+                .map(HintDto::fromEntity)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public int getHintCount(Long exerciseId) {
+        return (int) hintRepository.countByExerciseId(exerciseId);
     }
 
     @Transactional(readOnly = true)

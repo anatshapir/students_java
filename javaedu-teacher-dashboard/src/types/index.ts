@@ -27,6 +27,7 @@ export interface Exercise {
   title: string;
   description: string;
   starterCode: string;
+  solutionCode?: string;
   difficulty: 'BEGINNER' | 'EASY' | 'MEDIUM' | 'HARD' | 'EXPERT';
   points: number;
   category: string;
@@ -35,6 +36,8 @@ export interface Exercise {
   courseName: string;
   dueDate?: string;
   createdAt: string;
+  testCases?: TestCase[];
+  hints?: Hint[];
 }
 
 export interface TestCase {
@@ -46,6 +49,14 @@ export interface TestCase {
   isHidden: boolean;
   points: number;
   description?: string;       // Human-readable description of what this test checks
+}
+
+export interface Hint {
+  id: number;
+  orderNum: number;
+  content: string;
+  isAiGenerated: boolean;
+  penaltyPercentage: number;
 }
 
 export interface Submission {

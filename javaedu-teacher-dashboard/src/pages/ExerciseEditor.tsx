@@ -6,6 +6,12 @@ import type { Course, TestCase, GeneratedExercise } from '../types';
 import AIAssistantPanel from '../components/AIAssistantPanel';
 import TestCodeDocumentation from '../components/TestCodeDocumentation';
 
+interface HintForm {
+  content: string;
+  orderNum: number;
+  penaltyPercentage: number;
+}
+
 interface ExerciseForm {
   title: string;
   description: string;
@@ -16,6 +22,7 @@ interface ExerciseForm {
   category: string;
   courseId: number;
   testCases: TestCase[];
+  hints: HintForm[];
 }
 
 const CATEGORIES = [
@@ -56,6 +63,7 @@ const defaultForm: ExerciseForm = {
   category: 'BASICS',
   courseId: 0,
   testCases: [],
+  hints: [],
 };
 
 export default function ExerciseEditor() {
@@ -65,7 +73,7 @@ export default function ExerciseEditor() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(!!id);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'details' | 'code' | 'tests'>('details');
+  const [activeTab, setActiveTab] = useState<'details' | 'code' | 'tests' | 'hints'>('details');
   const [isAIPanelOpen, setIsAIPanelOpen] = useState(false);
   const activeTestEditorIndex = useRef<number | null>(null);
 
@@ -95,11 +103,26 @@ export default function ExerciseEditor() {
         title: data.title,
         description: data.description,
         starterCode: data.starterCode,
+        solutionCode: data.solutionCode,
         difficulty: data.difficulty,
         points: data.points,
         category: data.category,
         courseId: data.courseId,
-        testCases: [],
+        testCases: data.testCases?.map((tc) => ({
+          id: tc.id,
+          name: tc.name,
+          testCode: tc.testCode,
+          input: tc.input,
+          expectedOutput: tc.expectedOutput,
+          isHidden: tc.isHidden,
+          points: tc.points,
+          description: tc.description,
+        })) || [],
+        hints: data.hints?.map((h, i) => ({
+          content: h.content,
+          orderNum: h.orderNum ?? i + 1,
+          penaltyPercentage: h.penaltyPercentage ?? 0,
+        })) || [],
       });
     } catch (error) {
       console.error('Failed to load exercise:', error);
@@ -155,6 +178,11 @@ export default function ExerciseEditor() {
         points: tc.points,
         description: tc.description,
       })),
+      hints: (exercise.hints || []).map((content, index) => ({
+        content,
+        orderNum: index + 1,
+        penaltyPercentage: (index + 1) * 5,
+      })),
     }));
     setIsAIPanelOpen(false);
   };
@@ -180,6 +208,42 @@ export default function ExerciseEditor() {
       ...f,
       testCases: f.testCases.filter((_, i) => i !== index),
     }));
+  };
+
+  const addHint = () => {
+    setForm((f) => ({
+      ...f,
+      hints: [
+        ...f.hints,
+        { content: '', orderNum: f.hints.length + 1, penaltyPercentage: 0 },
+      ],
+    }));
+  };
+
+  const updateHint = (index: number, updates: Partial<HintForm>) => {
+    setForm((f) => ({
+      ...f,
+      hints: f.hints.map((h, i) => (i === index ? { ...h, ...updates } : h)),
+    }));
+  };
+
+  const removeHint = (index: number) => {
+    setForm((f) => ({
+      ...f,
+      hints: f.hints
+        .filter((_, i) => i !== index)
+        .map((h, i) => ({ ...h, orderNum: i + 1 })),
+    }));
+  };
+
+  const moveHint = (index: number, direction: 'up' | 'down') => {
+    setForm((f) => {
+      const hints = [...f.hints];
+      const swapIndex = direction === 'up' ? index - 1 : index + 1;
+      if (swapIndex < 0 || swapIndex >= hints.length) return f;
+      [hints[index], hints[swapIndex]] = [hints[swapIndex], hints[index]];
+      return { ...f, hints: hints.map((h, i) => ({ ...h, orderNum: i + 1 })) };
+    });
   };
 
   if (loading) {
@@ -224,7 +288,7 @@ export default function ExerciseEditor() {
       <div className="bg-white rounded-lg shadow">
         <div className="border-b border-gray-200">
           <nav className="flex">
-            {(['details', 'code', 'tests'] as const).map((tab) => (
+            {(['details', 'code', 'tests', 'hints'] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -253,6 +317,15 @@ export default function ExerciseEditor() {
               onRemove={removeTestCase}
               onInsertTemplate={handleInsertTemplate}
               onEditorFocus={(index) => { activeTestEditorIndex.current = index; }}
+            />
+          )}
+          {activeTab === 'hints' && (
+            <HintsTab
+              hints={form.hints}
+              onAdd={addHint}
+              onUpdate={updateHint}
+              onRemove={removeHint}
+              onMove={moveHint}
             />
           )}
 
@@ -604,6 +677,120 @@ function TestsTab({
       {testCases.length > 0 && (
         <div className="flex justify-end text-sm text-gray-600">
           Total test points: <span className="font-medium ml-1">{testCases.reduce((sum, tc) => sum + tc.points, 0)}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HintsTab({
+  hints,
+  onAdd,
+  onUpdate,
+  onRemove,
+  onMove,
+}: {
+  hints: HintForm[];
+  onAdd: () => void;
+  onUpdate: (index: number, updates: Partial<HintForm>) => void;
+  onRemove: (index: number) => void;
+  onMove: (index: number, direction: 'up' | 'down') => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm text-gray-600">
+            Add progressive hints that students can reveal while working on the exercise.
+          </p>
+          <p className="text-xs text-gray-400 mt-1">
+            Each hint can carry a score penalty to encourage independent problem-solving.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onAdd}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          + Add Hint
+        </button>
+      </div>
+
+      {hints.length === 0 ? (
+        <div className="text-center py-12 text-gray-500 border-2 border-dashed border-gray-300 rounded-lg">
+          <svg className="w-12 h-12 mx-auto mb-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+          </svg>
+          <p className="mb-1">No hints yet</p>
+          <p className="text-sm">Add hints to help students who get stuck, or use the AI Assistant to generate them.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {hints.map((hint, index) => (
+            <div key={index} className="border border-gray-200 rounded-lg p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-700">
+                  Hint {index + 1}
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => onMove(index, 'up')}
+                    disabled={index === 0}
+                    className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30"
+                    title="Move up"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onMove(index, 'down')}
+                    disabled={index === hints.length - 1}
+                    className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30"
+                    title="Move down"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onRemove(index)}
+                    className="p-1 text-red-500 hover:text-red-700"
+                    title="Remove hint"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <textarea
+                value={hint.content}
+                onChange={(e) => onUpdate(index, { content: e.target.value })}
+                placeholder="Enter hint text..."
+                dir="auto"
+                rows={2}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+              />
+
+              <div className="flex items-center gap-2 text-sm text-gray-700">
+                <label>Score penalty:</label>
+                <input
+                  type="number"
+                  value={hint.penaltyPercentage}
+                  onChange={(e) => onUpdate(index, { penaltyPercentage: Number(e.target.value) })}
+                  min={0}
+                  max={100}
+                  className="w-20 px-2 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+                <span className="text-gray-500">%</span>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

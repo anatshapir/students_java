@@ -3,6 +3,7 @@ import type {
   Course,
   Exercise,
   TestCase,
+  Hint,
   Submission,
   StudentProgress,
   ExerciseAnalytics,
@@ -220,6 +221,24 @@ export const exportGrades = async (courseId: number) => {
   await api.post(`/courses/${courseId}/grades/export`);
 };
 
+export const exportGradesCsv = async (courseId: number) => {
+  const response = await api.get(`/courses/${courseId}/grades/export/csv`, {
+    responseType: 'blob',
+  });
+  const disposition = response.headers['content-disposition'];
+  const match = disposition?.match(/filename="(.+)"/);
+  const filename = match ? match[1] : 'grades.csv';
+
+  const url = window.URL.createObjectURL(new Blob([response.data]));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+};
+
 // Enrollment
 export const getEnrollmentCode = async (courseId: number) => {
   const response = await api.get<EnrollmentCodeResponse>(
@@ -327,21 +346,37 @@ export const getExercise = async (id: number) => {
   return response.data;
 };
 
-export const createExercise = async (data: Partial<Exercise> & { testCases?: TestCase[] }) => {
+interface HintRequest {
+  content: string;
+  orderNum: number;
+  penaltyPercentage: number;
+}
+
+type ExercisePayload = Omit<Partial<Exercise>, 'testCases' | 'hints'> & {
+  testCases?: TestCase[];
+  hints?: HintRequest[];
+};
+
+export const createExercise = async (data: ExercisePayload) => {
   const response = await api.post<Exercise>('/exercises', data);
   return response.data;
 };
 
-export const updateExercise = async (
-  id: number,
-  data: Partial<Exercise> & { testCases?: TestCase[] }
-) => {
+export const updateExercise = async (id: number, data: ExercisePayload) => {
   const response = await api.put<Exercise>(`/exercises/${id}`, data);
   return response.data;
 };
 
 export const deleteExercise = async (id: number) => {
   await api.delete(`/exercises/${id}`);
+};
+
+export const getExerciseHints = async (exerciseId: number, upTo: number = 1) => {
+  const response = await api.get<{ hints: Hint[]; totalHints: number; hasMore: boolean }>(
+    `/exercises/${exerciseId}/hints`,
+    { params: { upTo } }
+  );
+  return response.data;
 };
 
 export const publishExercise = async (id: number) => {
