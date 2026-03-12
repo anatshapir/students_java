@@ -1,5 +1,6 @@
 package com.javaedu.model;
 
+import com.javaedu.security.StringEncryptConverter;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
@@ -39,6 +40,7 @@ public class User {
     private String googleId;
 
     @Column(name = "google_refresh_token")
+    @Convert(converter = StringEncryptConverter.class)
     private String googleRefreshToken;
 
     @Column(name = "google_token_expiry")

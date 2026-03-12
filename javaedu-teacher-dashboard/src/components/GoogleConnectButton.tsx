@@ -171,6 +171,9 @@ export default function GoogleConnectButton({
           <p className="text-sm text-yellow-800">{configError}</p>
         </div>
       )}
+      <p className="mb-2 text-xs text-gray-500">
+        Sign in with the Google account that owns your Google Classroom courses (typically your school account).
+      </p>
       <button
         onClick={handleConnect}
         disabled={connecting}
