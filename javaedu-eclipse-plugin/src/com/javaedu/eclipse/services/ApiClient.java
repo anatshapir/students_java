@@ -135,6 +135,14 @@ public class ApiClient {
     }
 
     /**
+     * Get hints for an exercise (progressive reveal).
+     */
+    public JsonObject getHints(Long exerciseId, int upTo) throws Exception {
+        String response = get("/exercises/" + exerciseId + "/hints?upTo=" + upTo);
+        return JsonParser.parseString(response).getAsJsonObject();
+    }
+
+    /**
      * Ask the AI helper a question.
      */
     public AIResponse askAIHelper(Long exerciseId, String question, String currentCode) throws Exception {
@@ -204,6 +212,11 @@ public class ApiClient {
             response.append(line);
         }
         reader.close();
+
+        if (responseCode == 401) {
+            AuthManager.getInstance().logout();
+            throw new Exception("Session expired. Please log in again.");
+        }
 
         if (responseCode >= 400) {
             throw new Exception("HTTP Error " + responseCode + ": " + response.toString());

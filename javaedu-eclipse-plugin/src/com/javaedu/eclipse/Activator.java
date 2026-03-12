@@ -4,6 +4,8 @@ import org.eclipse.jface.resource.ImageDescriptor;
 import org.eclipse.ui.plugin.AbstractUIPlugin;
 import org.osgi.framework.BundleContext;
 
+import com.javaedu.eclipse.preferences.PreferenceConstants;
+import com.javaedu.eclipse.services.ApiClient;
 import com.javaedu.eclipse.services.AuthManager;
 
 /**
@@ -25,6 +27,12 @@ public class Activator extends AbstractUIPlugin {
 
         // Initialize the auth manager
         AuthManager.getInstance().initialize();
+
+        // Apply server URL from preferences
+        String serverUrl = getPreferenceStore().getString(PreferenceConstants.SERVER_URL);
+        if (serverUrl != null && !serverUrl.isEmpty()) {
+            ApiClient.getInstance().setBaseUrl(serverUrl);
+        }
     }
 
     @Override
