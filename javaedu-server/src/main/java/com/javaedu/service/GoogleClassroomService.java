@@ -20,6 +20,9 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import org.springframework.scheduling.annotation.Scheduled;
+
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -53,7 +56,7 @@ public class GoogleClassroomService {
                 .uri("/v1/courses?teacherId=me")
                 .retrieve()
                 .bodyToMono(Map.class)
-                .block();
+                .block(REQUEST_TIMEOUT);
 
         if (response == null || !response.containsKey("courses")) {
             return List.of();
@@ -78,7 +81,7 @@ public class GoogleClassroomService {
                 .uri("/v1/courses/{courseId}/students", courseId)
                 .retrieve()
                 .bodyToMono(Map.class)
-                .block();
+                .block(REQUEST_TIMEOUT);
 
         if (response == null || !response.containsKey("students")) {
             return List.of();
@@ -303,9 +306,7 @@ public class GoogleClassroomService {
         Course course = courseRepository.findById(courseId)
                 .orElseThrow(() -> new BadRequestException("Course not found"));
 
-        if (course.getGoogleClassroomId() == null) {
-            throw new BadRequestException("Course is not linked to Google Classroom");
-        }
+        boolean isLinkedToGoogle = course.getGoogleClassroomId() != null;
 
         List<ExerciseExportPreview> exercises = new ArrayList<>();
         int totalStudentsWithGrades = 0;
@@ -313,7 +314,9 @@ public class GoogleClassroomService {
         for (Exercise exercise : course.getExercises()) {
             int studentsWithGrades = 0;
             for (User student : course.getStudents()) {
-                if (student.getGoogleId() != null) {
+                // For Google export, only count students with googleId
+                // For CSV export (no Google link), count all students
+                if (!isLinkedToGoogle || student.getGoogleId() != null) {
                     if (gradeRepository.findBestGradeByUserIdAndExerciseId(student.getId(), exercise.getId()).isPresent()) {
                         studentsWithGrades++;
                     }
@@ -351,7 +354,7 @@ public class GoogleClassroomService {
                     .bodyValue(params)
                     .retrieve()
                     .bodyToMono(Map.class)
-                    .block();
+                    .block(REQUEST_TIMEOUT);
 
             if (response == null) {
                 throw new RuntimeException("Failed to refresh access token");
@@ -387,9 +390,31 @@ public class GoogleClassroomService {
     }
 
     private String createOrGetCoursework(WebClient client, String classroomId, Exercise exercise) {
+        // First, try to find existing coursework with the same title
+        try {
+            Map<String, Object> listResponse = client.get()
+                    .uri("/v1/courses/{courseId}/courseWork", classroomId)
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .block(REQUEST_TIMEOUT);
+
+            if (listResponse != null && listResponse.containsKey("courseWork")) {
+                List<Map<String, Object>> existing = (List<Map<String, Object>>) listResponse.get("courseWork");
+                for (Map<String, Object> cw : existing) {
+                    if (exercise.getTitle().equals(cw.get("title"))) {
+                        log.info("Found existing coursework for exercise: {}", exercise.getTitle());
+                        return (String) cw.get("id");
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Could not list existing coursework: {}", e.getMessage());
+        }
+
+        // Create new coursework if not found
         Map<String, Object> coursework = Map.of(
                 "title", exercise.getTitle(),
-                "description", exercise.getDescription(),
+                "description", exercise.getDescription() != null ? exercise.getDescription() : "",
                 "maxPoints", exercise.getPoints(),
                 "workType", "ASSIGNMENT",
                 "state", "PUBLISHED"
@@ -402,11 +427,11 @@ public class GoogleClassroomService {
                     .bodyValue(coursework)
                     .retrieve()
                     .bodyToMono(Map.class)
-                    .block();
+                    .block(REQUEST_TIMEOUT);
 
             return response != null ? (String) response.get("id") : null;
         } catch (Exception e) {
-            log.warn("Could not create coursework, it may already exist: {}", e.getMessage());
+            log.warn("Could not create coursework for exercise {}: {}", exercise.getTitle(), e.getMessage());
             return null;
         }
     }
@@ -430,17 +455,51 @@ public class GoogleClassroomService {
                     .bodyValue(submission)
                     .retrieve()
                     .bodyToMono(Map.class)
-                    .block();
+                    .block(REQUEST_TIMEOUT);
         } catch (Exception e) {
             log.warn("Could not submit grade for student {}: {}", studentId, e.getMessage());
         }
     }
+
+    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(30);
 
     private WebClient buildClient(String accessToken) {
         return webClientBuilder
                 .baseUrl(classroomApiUrl)
                 .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                 .build();
+    }
+
+    /**
+     * Scheduled task to auto-sync courses that have autoSyncEnabled=true.
+     * Runs every 6 hours.
+     */
+    @Scheduled(cron = "0 0 */6 * * *")
+    @Transactional
+    public void autoSyncEnabledCourses() {
+        List<Course> autoSyncCourses = courseRepository.findAll().stream()
+                .filter(c -> Boolean.TRUE.equals(c.getAutoSyncEnabled()))
+                .filter(c -> c.getGoogleClassroomId() != null)
+                .toList();
+
+        if (autoSyncCourses.isEmpty()) {
+            return;
+        }
+
+        log.info("Running auto-sync for {} courses", autoSyncCourses.size());
+
+        for (Course course : autoSyncCourses) {
+            try {
+                User teacher = course.getTeacher();
+                String accessToken = getValidAccessToken(teacher);
+                SyncResult result = syncClassroomToCourse(accessToken, course.getGoogleClassroomId(), course.getId());
+                if (result.added() > 0) {
+                    log.info("Auto-sync added {} students to course '{}'", result.added(), course.getName());
+                }
+            } catch (Exception e) {
+                log.error("Auto-sync failed for course '{}': {}", course.getName(), e.getMessage());
+            }
+        }
     }
 
     // Records for API responses
