@@ -96,7 +96,7 @@ public class SubmissionService {
             submission.setStatus(Submission.Status.RUNNING);
             submissionRepository.save(submission);
 
-            List<TestResult> testResults = testRunnerService.runTests(submission, compilationResult.getCompiledClass());
+            List<TestResult> testResults = testRunnerService.runTests(submission, compilationResult.getCompiledClasses());
 
             submission.getTestResults().addAll(testResults);
             submission.setStatus(Submission.Status.COMPLETED);

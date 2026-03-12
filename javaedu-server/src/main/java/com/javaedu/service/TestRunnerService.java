@@ -346,10 +346,6 @@ public class TestRunnerService {
             return className;
         }
 
-        public Map<String, byte[]> getCompiledClass() {
-            return compiledClasses;
-        }
-
         public Map<String, byte[]> getCompiledClasses() {
             return compiledClasses;
         }
